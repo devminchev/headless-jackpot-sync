@@ -31,7 +31,7 @@ function useHeadlessJackpotApi() {
             position: 'center',
             shouldCloseOnEscapePress: true,
             title: 'Available Headless Jackpots',
-            parameters: { site: siteMap(entryInfo.site), selected: value ? value.id : null }
+            parameters: { site: siteMap(entryInfo.site), venture: entryInfo.site, selected: value ? value.id : null }
         });
 
         if (!headlessJackpotResponse) return;

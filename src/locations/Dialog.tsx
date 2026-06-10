@@ -4,11 +4,15 @@ import { useEffect, useState } from 'react';
 import { DialogAppSDK } from '@contentful/app-sdk';
 import { useSDK } from '@contentful/react-apps-toolkit';
 import { EntryCard, Stack } from '@contentful/f36-components';
+import { shouldUseStaging } from '../utils/venturesUsingStaging';
 
 const Dialog = () => {
     const { window, parameters, close } = useSDK<DialogAppSDK>();
-    const { site, selected } = parameters.invocation as any;
+    const { site, venture, selected } = parameters.invocation as any;
     const [jackpots, setJackpots] = useState([]);
+
+    // Check if this venture should use staging to fetch jackpots list
+    const useStaging = shouldUseStaging(venture, parameters.installation.venturesUsingStaging);
 
     useEffect(() => {
         window.startAutoResizer();
@@ -19,9 +23,17 @@ const Dialog = () => {
     useEffect(() => {
         const load = async () => {
             try {
-                const { data } = await axios.get(`${parameters.installation.productionApiDomain}/jackpot-config/jackpots`, {
+                // Use staging or production based on venture configuration
+                const apiDomain = useStaging
+                    ? parameters.installation.stagingApiDomain
+                    : parameters.installation.productionApiDomain;
+                const authHeader = useStaging
+                    ? parameters.installation.stagingBasicAuthHeaderCode
+                    : parameters.installation.productionBasicAuthHeaderCode;
+
+                const { data } = await axios.get(`${apiDomain}/jackpot-config/jackpots`, {
                     params: { site },
-                    headers: { Authorization: `Basic ${parameters.installation.productionBasicAuthHeaderCode}` }
+                    headers: { Authorization: `Basic ${authHeader}` }
                 });
 
                 setJackpots(data.jackpotConfigInfos);
@@ -37,7 +49,7 @@ const Dialog = () => {
         }
 
         load();
-    }, [site]);
+    }, [site, useStaging]);
 
     if (jackpots.length === 0) {
         return null;

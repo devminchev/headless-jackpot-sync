@@ -5,6 +5,7 @@ import { Badge, Button, Checkbox, Flex, FormControl, Heading, List, MenuDivider,
 import LoadingBar from '../components/LoadingBar/LoadingBar';
 
 import { siteMap } from '../utils/mapping';
+import { shouldUseStaging } from '../utils/venturesUsingStaging';
 import delay from '../utils/delay';
 
 const Page = () => {
@@ -37,8 +38,18 @@ const Page = () => {
 
     const loadHeadlessJackpots = async (selectedVentureName: string) => {
         try {
-            const { data } = await axios.get(`${parameters.installation.productionApiDomain}/jackpot-config/jackpots`, {
-                headers: { Authorization: `Basic ${parameters.installation.productionBasicAuthHeaderCode}` },
+            // Check if this venture should use staging to fetch jackpots list
+            const useStaging = shouldUseStaging(selectedVentureName, parameters.installation.venturesUsingStaging);
+
+            const apiDomain = useStaging
+                ? parameters.installation.stagingApiDomain
+                : parameters.installation.productionApiDomain;
+            const authHeader = useStaging
+                ? parameters.installation.stagingBasicAuthHeaderCode
+                : parameters.installation.productionBasicAuthHeaderCode;
+
+            const { data } = await axios.get(`${apiDomain}/jackpot-config/jackpots`, {
+                headers: { Authorization: `Basic ${authHeader}` },
                 params: { site: siteMap(selectedVentureName) }
             });
 

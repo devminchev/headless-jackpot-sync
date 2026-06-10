@@ -16,7 +16,7 @@ function useFetchHeadlessJackpots() {
             width: 'large',
             position: 'center',
             title: 'Available Headless Jackpots',
-            parameters: { site: siteMap(venture), selected: value }
+            parameters: { site: siteMap(venture), venture, selected: value }
         });
 
         if (selectedHeadlessJackpot) {

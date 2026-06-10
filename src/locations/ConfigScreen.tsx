@@ -6,8 +6,11 @@ import {
   Form,
   Flex,
   TextInput,
-  FormControl
+  FormControl,
+  Pill
 } from '@contentful/f36-components';
+import { Multiselect } from '@contentful/f36-multiselect';
+import { parseVenturesUsingStaging, stringifyVenturesUsingStaging } from '../utils/venturesUsingStaging';
 
 interface AppInstallationParameters {
   productionApiDomain: string;
@@ -18,9 +21,16 @@ interface AppInstallationParameters {
   activateGameApi: string;
   deactivateGameApi: string;
   isActiveGameApi: string;
+  venturesUsingStaging: string;
+}
+
+interface Venture {
+  name: string;
 }
 
 const ConfigScreen = () => {
+  const [availableVentures, setAvailableVentures] = useState<Venture[]>([]);
+  const [selectedVentures, setSelectedVentures] = useState<string[]>([]);
   const [parameters, setParameters] = useState<AppInstallationParameters>({
     productionApiDomain: '',
     productionBasicAuthHeaderCode: '',
@@ -29,17 +39,22 @@ const ConfigScreen = () => {
     jackpotsListApi: '',
     activateGameApi: '',
     deactivateGameApi: '',
-    isActiveGameApi: ''
+    isActiveGameApi: '',
+    venturesUsingStaging: ''
   });
   const sdk = useSDK<ConfigAppSDK>();
 
   const onConfigure = useCallback(async () => {
     const currentState = await sdk.app.getCurrentState();
     return {
-      parameters,
+      // Convert array to comma-separated string when saving
+      parameters: {
+        ...parameters,
+        venturesUsingStaging: stringifyVenturesUsingStaging(selectedVentures)
+      },
       targetState: currentState
     };
-  }, [parameters, sdk]);
+  }, [parameters, selectedVentures, sdk]);
 
   function updateParameters<T extends keyof AppInstallationParameters>(
     parameterName: T
@@ -48,6 +63,19 @@ const ConfigScreen = () => {
       const value = e.target.value;
       setParameters({ ...parameters, [parameterName]: value });
     };
+  };
+
+  const handleSelectItem = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { checked, value } = event.target;
+    if (checked) {
+      setSelectedVentures((prev) => [...prev, value]);
+    } else {
+      setSelectedVentures((prev) => prev.filter(v => v !== value));
+    }
+  };
+
+  const removeVenture = (ventureToRemove: string) => {
+    setSelectedVentures((prev) => prev.filter(v => v !== ventureToRemove));
   };
 
   useEffect(() => {
@@ -61,9 +89,36 @@ const ConfigScreen = () => {
 
       if (currentParameters) {
         setParameters(currentParameters);
+        setSelectedVentures(parseVenturesUsingStaging(currentParameters.venturesUsingStaging));
       };
 
       sdk.app.setReady();
+    })();
+  }, [sdk]);
+
+  // Fetch available ventures from Contentful
+  useEffect(() => {
+    (async () => {
+      try {
+        const entries = await sdk.cma.entry.getMany({
+          query: {
+            content_type: 'venture',
+            limit: 100
+          }
+        });
+
+        const defaultLocale = sdk.locales.default;
+        const ventures = entries.items
+          .map((entry: any) => ({
+            name: entry.fields.name?.[defaultLocale] || ''
+          }))
+          .filter((v: Venture) => v.name)
+          .sort((a: Venture, b: Venture) => a.name.localeCompare(b.name));
+
+        setAvailableVentures(ventures);
+      } catch (error) {
+        console.error('Failed to fetch ventures:', error);
+      }
     })();
   }, [sdk]);
 
@@ -103,6 +158,40 @@ const ConfigScreen = () => {
             onChange={updateParameters('stagingBasicAuthHeaderCode')}
           />
         </FormControl>
+
+        <FormControl key="venturesUsingStaging">
+          <FormControl.Label>Sites Using Staging Environment</FormControl.Label>
+          <Multiselect
+            currentSelection={selectedVentures}
+            popoverProps={{ isFullWidth: true }}
+          >
+            {availableVentures.map((venture) => (
+              <Multiselect.Option
+                key={venture.name}
+                value={venture.name}
+                itemId={venture.name}
+                label={venture.name}
+                onSelectItem={handleSelectItem}
+                isChecked={selectedVentures.includes(venture.name)}
+              />
+            ))}
+          </Multiselect>
+          {selectedVentures.length > 0 && (
+            <Flex marginTop="spacingXs" gap="spacingXs" flexWrap="wrap">
+              {selectedVentures.map((venture) => (
+                <Pill
+                  key={venture}
+                  label={venture}
+                  onClose={() => removeVenture(venture)}
+                />
+              ))}
+            </Flex>
+          )}
+          <FormControl.HelpText>
+            Select which sites should fetch jackpot configurations from the staging environment instead of production.
+          </FormControl.HelpText>
+        </FormControl>
+
         <FormControl isRequired isInvalid={!parameters.jackpotsListApi} key="jackpotsListApi">
           <FormControl.Label>Headless Jackpots Api Config</FormControl.Label>
           <TextInput
